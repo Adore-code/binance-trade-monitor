@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>多币种大额成交监控</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0c1119;color:#edf2f8;font:14px system-ui,"Microsoft YaHei",sans-serif}main{max-width:1280px;margin:auto;padding:28px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}h1{font-size:26px;margin:0 0 8px}h2{font-size:16px;margin:0}small,.muted{color:#91a3bc}#status{color:#e6be65}#status.live,.buy{color:#4bd5ad}.sell{color:#ff7485}form{display:flex;flex-wrap:wrap;gap:14px;align-items:end;padding:18px;border:1px solid #263347;background:#141d29;border-radius:12px}label{display:grid;gap:8px;color:#91a3bc;font-size:12px}input,button{font:inherit;border:1px solid #344359;border-radius:7px;padding:10px 12px;background:#0c1119;color:#edf2f8}input{width:170px}button{cursor:pointer;background:#e6be65;color:#121821;font-weight:600}button.secondary{background:#263347;color:#edf2f8}button:disabled{opacity:.5}.summary{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:22px 0}#headline{font-size:22px;font-weight:600}.columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.panel{border:1px solid #263347;border-radius:12px;background:#141d29;overflow:hidden}.panel-head{padding:18px;border-bottom:1px solid #263347;display:flex;justify-content:space-between;gap:10px}.scroll{height:520px;overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums}th,td{padding:12px 10px;text-align:right;border-bottom:1px solid #263347}th{position:sticky;top:0;background:#192333;color:#91a3bc;font-weight:400}th:first-child,td:first-child{text-align:left}tr.large{background:#e6be650a;font-weight:650}td.empty{text-align:center;color:#91a3bc;padding:45px 10px}#error{padding:14px;color:#ffc0c7;background:#39232b;border-radius:8px;margin-top:16px}footer{font-size:12px;line-height:1.9;color:#91a3bc;margin-top:20px}@media(max-width:1000px){.columns{grid-template-columns:1fr}.scroll{height:380px}}@media(max-width:600px){main{padding:14px}header,.summary{align-items:start;flex-direction:column;gap:12px}#headline{font-size:19px}}
+input#symbol{width:min(450px,80vw)}select{padding:9px;background:#141d29;color:#edf2f8;border:1px solid #344359;border-radius:7px}.toolbar,.coins{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:18px 0}.toolbar a{color:#e6be65}.coins span{border:1px solid #263347;border-radius:6px;padding:9px;color:#91a3bc;font-size:12px}main{max-width:1600px}.columns{grid-template-columns:1fr}@media(min-width:1450px){.columns{grid-template-columns:1fr 1fr}}
+.coin-group{margin:28px 0 42px}.coin-group>.summary{border-left:3px solid #e6be65;padding-left:14px}h3{font-size:14px;margin:0}.panel-head a{color:#e6be65;font-size:12px}.scroll{height:330px}
+</style>
+<main><header><div><h1 id="title">多币种成交监控</h1><small>同时监控多个币种 · 成交自动记录日志</small></div><span id="status">正在加载…</span></header>
+<form id="settings"><label>交易对（逗号分隔，最多 20 个）<input id="symbol" value="XRPUSDT, BTCUSDT, ETHUSDT" required maxlength="500"></label><label>大额门槛（USDT）<input id="threshold" type="number" min="1" max="1000000000000" step="any" value="20000" required></label><button id="save">应用</button><button id="notify" class="secondary" type="button">开启桌面通知</button></form>
+<div class="toolbar"><button id="startMonitor" type="button">开始监控</button><button id="stopMonitor" type="button" class="secondary">停止监控</button><small>停止监控会保存日志，仍可查询历史；完全关闭后台请双击“停止服务.bat”。</small></div>
+<div id="coins" class="coins"></div><div id="error" role="alert" hidden></div>
+<section class="history"><h2>历史成交查询</h2>
+<form id="searchForm">
+<label>查询币种<select id="searchSymbol" required></select></label>
+<label>开始时间（北京时间）<input id="searchStart" type="datetime-local" step="1" required style="width:230px"></label>
+<label>结束时间（北京时间）<input id="searchEnd" type="datetime-local" step="1" required style="width:230px"></label>
+<label>成交类型<select id="searchKind"><option value="trades">全部成交</option><option value="large">仅大额成交</option></select></label>
+<button id="searchButton">搜索</button>
+</form>
+<p class="muted">按成交时间查询，包含开始时间、不包含结束时间。支持跨小时、跨日期；仅查询本地已保存的记录。</p>
+<p id="searchMessage" role="status">选择时间段后点击搜索。</p>
+<div id="searchResults" hidden><div class="toolbar"><button type="button" class="secondary" id="prevPage">上一页</button><span id="searchPage"></span><button type="button" class="secondary" id="nextPage">下一页</button><a id="searchExport">导出该时间段全部结果 CSV</a></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>时间（北京时间）</th><th>方向</th><th>价格</th><th>数量</th><th>金额（USDT）</th></tr></thead><tbody id="searchRows"></tbody></table></div></div></div>
+</section>
+<div class="summary"><small id="thresholdLabel"></small><small id="last"></small></div><div id="groups"></div>
+<footer>绿色：主动买入；红色：主动卖出。金额 = 成交价 × 数量，按单笔撮合成交判断，不能据此认定为一个大户的完整订单。<br>后台运行期间持续记录，关闭页面不影响采集；刷新或重启后保留日志。断线期间可能遗漏成交。<br>历史大额标记按成交被接收时的门槛保存；修改门槛只影响后续成交。每个币种独立显示、独立导出；CSV 分别保存在对应币种目录。<br><span id="logPath"></span></footer></main><script src="/app.js"></script></html>
