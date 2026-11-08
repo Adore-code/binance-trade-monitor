@@ -401,13 +401,14 @@ class Monitor:
         self.storage_lock = threading.Lock()
         self.storage_cache = None
         self.storage_cached_at = 0
-        self.positions = Positions()
+        self.positions = Positions(directory)
         self.running = False
         self.markets = {name: MarketMonitor(directory=directory, market=name, config=self.child_config(name), persist=False)
                         for name in ('spot','futures')}
         for child in self.markets.values():
             child.status = 'stopped'
             child.stop_event.set()
+        self.positions.watch(lambda: (list(self.config['futures_symbols']), self.running and self.config['mode'] in ('both','futures')))
 
     def child_config(self, name):
         return dict(symbols=self.config['futures_symbols' if name=='futures' else 'symbols'], large_trade_usdt=self.config['futures_large_trade_usdt' if name=='futures' else 'large_trade_usdt'])
@@ -523,6 +524,42 @@ def handler_for(monitor):
 
         def do_GET(self):
             parsed = urllib.parse.urlsplit(self.path)
+            if parsed.path in ('/api/positions/search', '/api/positions/search.csv', '/api/positions/symbols'):
+                try:
+                    store = monitor.positions.store
+                    if parsed.path.endswith('/symbols'):
+                        self.respond(200,json.dumps(sorted(set(store.symbols()+monitor.config['futures_symbols']))))
+                        return
+                    params = {k:v[0] for k,v in urllib.parse.parse_qs(parsed.query,keep_blank_values=True).items()}
+                    filters = search_filters(params)
+                    metric = params.get('metric','all')
+                    if metric not in ('all','open_interest','top_positions','global_accounts'):
+                        raise ValueError('无效持仓指标')
+                    if parsed.path.endswith('.csv'):
+                        from position_store import FIELDS
+                        self.send_response(200)
+                        self.send_header('Content-Type','text/csv; charset=utf-8')
+                        self.send_header('Content-Disposition','attachment; filename="positions-'+filters['symbol']+'.csv"')
+                        self.send_header('Connection','close')
+                        self.end_headers()
+                        self.close_connection = True
+                        buffer = io.StringIO()
+                        writer = csv.writer(buffer)
+                        self.wfile.write(b'\xef\xbb\xbf')
+                        writer.writerow(FIELDS)
+                        self.wfile.write(buffer.getvalue().encode('utf-8'))
+                        for row in store.search(filters,metric,export=True):
+                            buffer.seek(0)
+                            buffer.truncate(0)
+                            writer.writerow([row[k] for k in FIELDS])
+                            self.wfile.write(buffer.getvalue().encode('utf-8'))
+                    else:
+                        self.respond(200,json.dumps(next(store.search(filters,metric))))
+                except (ValueError,OverflowError) as exc:
+                    self.respond(400,json.dumps({'error':str(exc)}))
+                except (BrokenPipeError,ConnectionResetError):
+                    pass
+                return
             if parsed.path == '/api/positions' and hasattr(monitor, 'positions'):
                 config = dict(monitor.config)
                 enabled = config['mode'] in ('both', 'futures')

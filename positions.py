@@ -7,6 +7,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from position_store import PositionStore
 
 
 def fetch_json(path, params):
@@ -23,12 +24,24 @@ def positive(value):
 
 
 class Positions:
-    def __init__(self):
+    def __init__(self, directory=None):
         self.lock = threading.Lock()
         self.pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='positions')
         self.cache = {}
         self.pending = {}
         self.closed = False
+        self.store = PositionStore(directory) if directory is not None else None
+        self.stop_event = threading.Event()
+        self.scheduler = None
+
+    def watch(self, provider):
+        def run():
+            while not self.stop_event.is_set():
+                symbols, active = provider()
+                self.snapshot(symbols, active)
+                self.stop_event.wait(1)
+        self.scheduler = threading.Thread(target=run, daemon=True, name='position-scheduler')
+        self.scheduler.start()
 
     def snapshot(self, symbols, active):
         with self.lock:
@@ -72,6 +85,14 @@ class Positions:
                 metric.update(error='', fetched_at=int(time.time()*1000))
                 with self.lock:
                     self.cache[symbol]['metrics'][key] = metric
+                if self.store:
+                    try:
+                        self.store.save(symbol, key, metric)
+                        with self.lock:
+                            self.cache[symbol]['metrics'][key]['log_error'] = ''
+                    except Exception as exc:
+                        with self.lock:
+                            self.cache[symbol]['metrics'][key]['log_error'] = '持仓日志写入失败：'+str(exc)
             except Exception as exc:
                 with self.lock:
                     metric = self.cache[symbol]['metrics'].setdefault(key, {})
@@ -81,6 +102,9 @@ class Positions:
             self.pending.pop(symbol, None)
 
     def close(self):
+        self.stop_event.set()
+        if self.scheduler:
+            self.scheduler.join()
         with self.lock:
             self.closed = True
         self.pool.shutdown(wait=True, cancel_futures=True)

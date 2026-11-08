@@ -24,6 +24,7 @@ function render(s){
  if(first){$('mode').value=s.config.mode;$('symbol').value=s.config.symbols.join(', ');$('futuresSymbol').value=s.config.futures_symbols.join(', ');$('threshold').value=s.config.large_trade_usdt;$('futuresThreshold').value=s.config.futures_large_trade_usdt;settingsMode();}
  if(oldConfig!==JSON.stringify(s.config)){
   loadHistorySymbols();
+  loadPositionSymbols();
   $('groups').replaceChildren();
   for(const {symbol,market,key} of entries){
    const section=document.createElement('section');section.className='coin-group';section.dataset.symbol=symbol;
@@ -96,7 +97,8 @@ function renderPositions(data){
    const info=document.createElement('p');info.className='muted';info.style.fontSize='12px';
    const stale=m.time && Date.now()-m.time>(key==='open_interest'?180000:900000);
    info.textContent=(m.time?'数据时间 '+new Date(m.time).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}):'等待接口返回')+(stale?' · 数据已过期':'')+(m.error?' · '+m.error+(m.time?'（保留上次数据）':''):'');
-   if(stale||m.error)info.style.color='#ffb170';card.append(info);
+   if(m.log_error)info.textContent+=' · '+m.log_error;
+   if(stale||m.error||m.log_error)info.style.color='#ffb170';card.append(info);
   }
   $('positionsRows').append(card);
  }
@@ -169,3 +171,30 @@ async function loadStorage(manual=false){
 }
 $('refreshStorage').onclick=()=>loadStorage(true);
 loadStorage();setInterval(()=>loadStorage(),30000);
+
+const positionLabels={open_interest:'总持仓量',top_positions:'大户多空持仓占比',global_accounts:'全市场多空账户占比'};
+let positionQuery=null,positionPage=1,positionPages=1,positionSearching=false;
+$('positionSearchStart').value=chinaInput(Date.now()-3600000);
+$('positionSearchEnd').value=chinaInput(Date.now());
+async function loadPositionSymbols(){
+ try{const r=await fetch('/api/positions/symbols');if(!r.ok)throw Error('无法读取持仓币种');const symbols=await r.json();const selected=$('positionSearchSymbol').value;$('positionSearchSymbol').replaceChildren();for(const symbol of symbols){const option=document.createElement('option');option.value=option.textContent=symbol;$('positionSearchSymbol').append(option);}if(symbols.includes(selected))$('positionSearchSymbol').value=selected;}
+ catch(e){$('positionSearchMessage').textContent=e.message;}
+}
+async function searchPositions(page,query){
+ if(positionSearching)return;positionSearching=true;
+ $('positionSearchButton').disabled=$('positionPrev').disabled=$('positionNext').disabled=true;
+ $('positionSearchResults').hidden=true;$('positionSearchMessage').textContent='正在查询持仓…';
+ try{const r=await fetch('/api/positions/search?'+new URLSearchParams({...query,page}),{signal:AbortSignal.timeout(30000)});const data=await r.json();if(!r.ok)throw Error(data.error||'查询失败');
+  positionQuery={...query,cutoff:data.cutoff};positionPage=data.page;positionPages=data.pages;
+  $('positionSearchRows').replaceChildren();
+  for(const row of data.rows){const tr=document.createElement('tr');for(const value of [row.time_shanghai.replace('T',' '),positionLabels[row.metric],row.value===null?'—':number(row.value,8),row.long===null?'—':number(row.long*100)+'%',row.short===null?'—':number(row.short*100)+'%',row.ratio===null?'—':number(row.ratio,4)]){const td=document.createElement('td');td.textContent=value;tr.append(td);}$('positionSearchRows').append(tr);}
+  $('positionSearchMessage').textContent=query.symbol+' ｜ '+query.start.replace('T',' ')+' 至 '+query.end.replace('T',' ')+'（结束时间不含） ｜ 共 '+data.total+' 条持仓记录';
+  $('positionPage').textContent='第 '+data.page+' / '+data.pages+' 页，每页 100 条';
+  $('positionExport').href='/api/positions/search.csv?'+new URLSearchParams(positionQuery);$('positionSearchResults').hidden=false;
+ }catch(e){$('positionSearchMessage').textContent='查询失败：'+e.message;}
+ finally{positionSearching=false;$('positionSearchButton').disabled=false;$('positionPrev').disabled=positionPage<=1;$('positionNext').disabled=positionPage>=positionPages;}
+}
+$('positionSearchForm').onsubmit=e=>{e.preventDefault();searchPositions(1,{symbol:$('positionSearchSymbol').value,start:$('positionSearchStart').value,end:$('positionSearchEnd').value,metric:$('positionSearchMetric').value});};
+$('positionPrev').onclick=()=>searchPositions(positionPage-1,positionQuery);
+$('positionNext').onclick=()=>searchPositions(positionPage+1,positionQuery);
+loadPositionSymbols();
