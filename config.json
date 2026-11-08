@@ -1,7 +1,13 @@
 {
+  "mode": "both",
   "symbols": [
     "XRPUSDT",
     "LTCUSDT"
   ],
-  "large_trade_usdt": 20000.0
+  "futures_symbols": [
+    "XRPUSDT",
+    "LTCUSDT"
+  ],
+  "large_trade_usdt": 10000.0,
+  "futures_large_trade_usdt": 50000.0
 }

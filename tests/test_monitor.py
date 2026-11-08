@@ -8,7 +8,7 @@ from unittest.mock import patch
 import urllib.request
 from http.server import ThreadingHTTPServer
 from datetime import datetime
-from monitor import Monitor, handler_for, validate_config, parse_trade, SHANGHAI, search_filters
+from monitor import MarketMonitor as Monitor, handler_for, validate_config, parse_trade, SHANGHAI, search_filters
 
 
 def event(symbol='XRPUSDT', trade_id=1, price='2.5', quantity='8000', maker=False):
