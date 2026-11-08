@@ -18,6 +18,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from positions import Positions
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parent
@@ -400,6 +401,7 @@ class Monitor:
         self.storage_lock = threading.Lock()
         self.storage_cache = None
         self.storage_cached_at = 0
+        self.positions = Positions()
         self.running = False
         self.markets = {name: MarketMonitor(directory=directory, market=name, config=self.child_config(name), persist=False)
                         for name in ('spot','futures')}
@@ -492,6 +494,7 @@ class Monitor:
             self.running = False
             for child in self.markets.values():
                 child.close()
+        self.positions.close()
 
     def snapshot(self):
         # Reads must remain available while control operations wait for collectors to flush.
@@ -520,6 +523,12 @@ def handler_for(monitor):
 
         def do_GET(self):
             parsed = urllib.parse.urlsplit(self.path)
+            if parsed.path == '/api/positions' and hasattr(monitor, 'positions'):
+                config = dict(monitor.config)
+                enabled = config['mode'] in ('both', 'futures')
+                self.respond(200, json.dumps(monitor.positions.snapshot(
+                    config['futures_symbols'] if enabled else [], monitor.running and enabled)))
+                return
             if parsed.path == '/api/storage' and hasattr(monitor,'storage_usage'):
                 try:
                     self.respond(200,json.dumps(monitor.storage_usage(refresh=urllib.parse.parse_qs(parsed.query).get('refresh')==['1'])))

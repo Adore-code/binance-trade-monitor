@@ -11,6 +11,7 @@ input#symbol{width:min(450px,80vw)}select{padding:9px;background:#141d29;color:#
 <div class="toolbar"><button id="startMonitor" type="button">开始监控</button><button id="stopMonitor" type="button" class="secondary">停止监控</button><small>停止监控会保存日志，仍可查询历史；完全关闭后台请双击“停止服务.bat”。</small></div>
 <div id="coins" class="coins"></div><div id="error" role="alert" hidden></div>
 <section class="panel" style="padding:18px;margin:18px 0"><div class="panel-head"><h2>日志空间占用</h2><button id="refreshStorage" class="secondary" type="button">刷新统计</button></div><div class="summary"><div><small>当前日志总大小</small><h2 id="storageTotal">—</h2><small id="storageFiles">统计中</small></div><div><small>日志所在磁盘剩余空间</small><h2 id="diskFree">—</h2><small id="diskCapacity"></small></div></div><div class="coins" id="storageGroups"></div><p id="storageKinds" class="muted"></p><p id="storageMessage" role="status" class="muted">正在统计…</p><small>统计文件大小合计，包含 CSV、数据库、备份和运行日志；磁盘剩余空间包括其他程序的占用。每 30 秒更新。不自动删除日志，此处不是运行内存 RAM。</small></section>
+<section class="panel" style="padding:18px;margin:18px 0"><h2>合约持仓分布</h2><p class="muted">USDT 永续合约 · 总持仓量每分钟更新，多空比例使用币安 5 分钟统计。大户指保证金余额排名前 20% 的用户；全市场指标是账户数量占比，不是资金或持仓量占比。</p><p id="positionsStatus" role="status">正在加载…</p><div id="positionsRows" class="columns"></div><small>各项时间为币安数据时间（北京时间），可能不同步。仅展示公开汇总数据；暂停监控后停止发起新请求，已有请求可能完成。本面板不写入成交日志。</small></section>
 <section class="history"><h2>历史成交查询</h2>
 <form id="searchForm">
 <label>查询市场<select id="searchMarket"><option value="spot">现货</option><option value="futures">USDT 永续合约</option></select></label>

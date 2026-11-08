@@ -1,5 +1,11 @@
 # 多币种最新成交与大额成交监控
 
+## 合约持仓分布
+
+启用合约监控后，页面按自定义合约币种显示总持仓量（合约标的数量）、大户多空持仓占比、全市场多空账户占比与多空比。大户为保证金余额排名前 20% 用户，全市场账户占比不能当作资金占比。来源为[币安公开合约接口](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data)：`/fapi/v1/openInterest`、`/futures/data/topLongShortPositionRatio`、`/futures/data/globalLongShortAccountRatio`，无需 API Key。
+
+多空统计周期为 5 分钟。页面通过 `/api/positions` 每 5 秒读取缓存，有页面访问且监控运行时，后台每个币种最多每 60 秒重新请求一次，最多 4 个币种并发，不阻塞成交采集。每项独立显示币安数据时间；总持仓超过 3 分钟、多空统计超过 15 分钟标记过期。接口失败保留旧值并显示错误，不把缺失数据当作零。暂停后不再发起新一轮请求，已排队或正在进行的请求可能完成。关闭页面后不持续采集此面板，持仓汇总仅内存缓存，不混入成交或大额成交日志，也不提供持仓历史搜索。
+
 ## 独立大额门槛与日志空间统计
 
 现货和合约分别设置大额金额门槛（USDT）。`large_trade_usdt` 用于现货，`futures_large_trade_usdt` 用于合约；旧配置升级时两者默认沿用原门槛。修改只影响之后接收的成交，历史大额标记和当时门槛保持不变。

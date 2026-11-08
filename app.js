@@ -72,6 +72,42 @@ $('notify').onclick=async()=>{if(!('Notification'in window)){error('浏览器不
 async function poll(){try{if(!saving){const response=await fetch('/api/state',{signal:AbortSignal.timeout(8000)});if(!response.ok)throw Error('服务返回 '+response.status);const s=await response.json();if(!saving)render(s);}}catch(e){$('status').textContent='本地服务连接中断';$('status').className='';error(e.message+'；请确认后台程序仍在运行。');}finally{setTimeout(poll,1000);}}
 poll();
 
+function renderPositions(data){
+ $('positionsStatus').textContent=!data.rows.length?'仅合约支持持仓分布，请在上方启用合约监控。':data.active?'按当前合约币种显示 · 自动更新':'监控已暂停 · 以下为缓存数据';
+ $('positionsRows').replaceChildren();
+ for(const row of data.rows){
+  const card=document.createElement('section');card.className='panel';card.style.padding='18px';
+  const title=document.createElement('h3');title.textContent=row.symbol+(row.loading?' · 更新中…':'');card.append(title);
+  for(const [key,label] of [['open_interest','总持仓量'],['top_positions','大户多空持仓占比'],['global_accounts','全市场多空账户占比']]){
+   const m=row.metrics[key]||{};
+   const p=document.createElement('p');p.textContent=label+'：';
+   if(!m.time){p.append('暂无数据');}
+   else if(key==='open_interest'){p.append(number(m.value,8)+' '+row.symbol.slice(0,-4)+'（合约标的单位）');}
+   else{
+    const long=document.createElement('span');long.className='buy';long.textContent='多 '+number(m.long*100)+'%';
+    const short=document.createElement('span');short.className='sell';short.textContent='空 '+number(m.short*100)+'%';
+    p.append(long,' / ',short,' ｜ 多空比 '+number(m.ratio,4));
+   }
+   card.append(p);
+   if(m.time && key!=='open_interest'){
+    const bar=document.createElement('div');bar.style.cssText='height:8px;display:flex;background:#263347;border-radius:4px;overflow:hidden';bar.setAttribute('aria-hidden','true');
+    for(const [value,color] of [[m.long,'#4bd5ad'],[m.short,'#ff7485']]){const part=document.createElement('span');part.style.width=(value*100)+'%';part.style.background=color;bar.append(part);}card.append(bar);
+   }
+   const info=document.createElement('p');info.className='muted';info.style.fontSize='12px';
+   const stale=m.time && Date.now()-m.time>(key==='open_interest'?180000:900000);
+   info.textContent=(m.time?'数据时间 '+new Date(m.time).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}):'等待接口返回')+(stale?' · 数据已过期':'')+(m.error?' · '+m.error+(m.time?'（保留上次数据）':''):'');
+   if(stale||m.error)info.style.color='#ffb170';card.append(info);
+  }
+  $('positionsRows').append(card);
+ }
+}
+async function pollPositions(){
+ try{const r=await fetch('/api/positions',{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('服务返回 '+r.status);renderPositions(await r.json());}
+ catch(e){$('positionsStatus').textContent='持仓更新失败，已有数据可能过期：'+e.message;}
+ finally{setTimeout(pollPositions,5000);}
+}
+pollPositions();
+
 let searchQuery=null, searchPage=1, searchPages=1, searching=false;
 const chinaInput=stamp=>new Date(stamp+8*3600000).toISOString().slice(0,19);
 $('searchEnd').value=chinaInput(Date.now());
